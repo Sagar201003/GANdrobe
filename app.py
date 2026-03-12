@@ -21,11 +21,29 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Paths and Constants
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIRS = {
-    "Vanilla GAN": os.path.join(BASE_DIR, "vanilla_gan"),
-    "cGAN": os.path.join(BASE_DIR, "cgan"),
-    "DCGAN": os.path.join(BASE_DIR, "dcgan")
-}
+
+# Dynamically discover model directories
+def get_model_dirs():
+    dirs = {}
+    # Find all subdirectories in BASE_DIR that contain a 'weights' folder, plus the default ones
+    default_models = ["Vanilla GAN", "cGAN", "DCGAN"]
+    
+    # Check default ones first
+    for model in default_models:
+        folder_name = model.lower().replace(" ", "_").replace("cgan", "cgan")
+        _path = os.path.join(BASE_DIR, folder_name)
+        dirs[model] = _path
+
+    # Check for any custom model folders
+    for item in os.listdir(BASE_DIR):
+        item_path = os.path.join(BASE_DIR, item)
+        if os.path.isdir(item_path) and item not in [".git", "code", "GeneratedImages", "RawImages"] and item not in [d.lower().replace(" ", "_") for d in default_models]:
+             if "weights" in os.listdir(item_path):
+                 dirs[item] = item_path
+    return dirs
+
+MODEL_DIRS = get_model_dirs()
+
 CLASS_NAMES = ["T-shirt", "Trouser", "Pullover", "Dress", "Coat", 
                "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"]
 
@@ -161,6 +179,11 @@ def load_model(model_name, checkpoint_path):
     elif model_name == "DCGAN":
         G = DCGANGenerator().to(device)
         D = DCGANDiscriminator().to(device)
+    else:
+        # For custom models, we would need their architecture definition. 
+        # For now, we return None and show a warning in the UI if logic isn't there
+        st.warning(f"Architecture for '{model_name}' is not defined in app.py yet. Only weights have been uploaded.")
+        return None, None, None
         
     G.load_state_dict(ckpt["generator_state_dict"])
     D.load_state_dict(ckpt["discriminator_state_dict"])
@@ -197,7 +220,9 @@ st.sidebar.title("Controls")
 st.sidebar.markdown(f"**Active Device:** `{'CUDA' if device.type == 'cuda' else 'CPU'}`")
 
 # Model Selection
-selected_model = st.sidebar.selectbox("Select Model", ["Vanilla GAN", "cGAN", "DCGAN"])
+# Refresh MODEL_DIRS just in case new uploads happened
+MODEL_DIRS = get_model_dirs()
+selected_model = st.sidebar.selectbox("Select Model", list(MODEL_DIRS.keys()))
 
 # Epoch Selection
 available_epochs = get_available_epochs(selected_model)
@@ -235,10 +260,18 @@ st.sidebar.markdown("---")
 
 # --- Custom Model & Epoch Upload ---
 with st.sidebar.expander("⬆️ Upload Custom Epoch Results", expanded=False):
-    st.markdown("Upload your newly trained `.pt` weights and `.png` sample images here:")
-    upload_type = st.selectbox("GAN Architecture Type", ["Vanilla GAN", "cGAN", "DCGAN"], key="upload_type")
+    st.markdown("Upload your newly trained `.pt` weights and `.png` sample images here. If the architecture type doesn't exist, type a new one!")
     
-    uploaded_files = st.file_uploader(
+    # Allow user to either select existing or type a new one
+    upload_type_selection = st.selectbox("GAN Architecture Type", list(MODEL_DIRS.keys()) + ["+ Add New Architecture..."], key="upload_type")
+    
+    if upload_type_selection == "+ Add New Architecture...":
+        upload_type = st.text_input("Enter New Architecture Name", placeholder="e.g., 'WGAN-GP'").strip()
+    else:
+        upload_type = upload_type_selection
+        
+    if upload_type:
+        uploaded_files = st.file_uploader(
         "Epoch Results (.pt, .png)", 
         accept_multiple_files=True, 
         type=["pt", "png"], 
@@ -246,9 +279,19 @@ with st.sidebar.expander("⬆️ Upload Custom Epoch Results", expanded=False):
     )
     
     if st.button("Save Uploaded Results", use_container_width=True):
-        if uploaded_files:
-            weights_dir = os.path.join(MODEL_DIRS[upload_type], "weights")
-            results_dir = os.path.join(MODEL_DIRS[upload_type], "results")
+        if not upload_type:
+            st.error("Please specify an architecture name.")
+        elif uploaded_files:
+            # Determine directory for the upload type
+            if upload_type in MODEL_DIRS:
+                 base_model_dir = MODEL_DIRS[upload_type]
+            else:
+                 # Create a new safe folder name for the custom model
+                 safe_folder_name = upload_type.lower().replace(" ", "_")
+                 base_model_dir = os.path.join(BASE_DIR, safe_folder_name)
+                 
+            weights_dir = os.path.join(base_model_dir, "weights")
+            results_dir = os.path.join(base_model_dir, "results")
             os.makedirs(weights_dir, exist_ok=True)
             os.makedirs(results_dir, exist_ok=True)
             
@@ -258,6 +301,7 @@ with st.sidebar.expander("⬆️ Upload Custom Epoch Results", expanded=False):
             for uf in uploaded_files:
                 if uf.name.endswith(".pt"):
                     save_path = os.path.join(weights_dir, uf.name)
+                    # Note: Using python's open with binary write over the top of existing files replaces them entirely.
                     with open(save_path, "wb") as f:
                         f.write(uf.getbuffer())
                     saved_weights += 1
