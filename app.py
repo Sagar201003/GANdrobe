@@ -231,6 +231,55 @@ else:
         if loss_D_val != "N/A": col2.metric("Loss D", f"{loss_D_val:.4f}")
         else: col2.metric("Loss D", "N/A")
 
+st.sidebar.markdown("---")
+
+# --- Custom Model & Epoch Upload ---
+with st.sidebar.expander("⬆️ Upload Custom Epoch Results", expanded=False):
+    st.markdown("Upload your newly trained `.pt` weights and `.png` sample images here:")
+    upload_type = st.selectbox("GAN Architecture Type", ["Vanilla GAN", "cGAN", "DCGAN"], key="upload_type")
+    
+    uploaded_files = st.file_uploader(
+        "Epoch Results (.pt, .png)", 
+        accept_multiple_files=True, 
+        type=["pt", "png"], 
+        help="e.g., 'epoch_100.pt' or 'epoch_100.png'"
+    )
+    
+    if st.button("Save Uploaded Results", use_container_width=True):
+        if uploaded_files:
+            weights_dir = os.path.join(MODEL_DIRS[upload_type], "weights")
+            results_dir = os.path.join(MODEL_DIRS[upload_type], "results")
+            os.makedirs(weights_dir, exist_ok=True)
+            os.makedirs(results_dir, exist_ok=True)
+            
+            saved_weights = 0
+            saved_imgs = 0
+            
+            for uf in uploaded_files:
+                if uf.name.endswith(".pt"):
+                    save_path = os.path.join(weights_dir, uf.name)
+                    with open(save_path, "wb") as f:
+                        f.write(uf.getbuffer())
+                    saved_weights += 1
+                elif uf.name.endswith(".png"):
+                    save_path = os.path.join(results_dir, uf.name)
+                    with open(save_path, "wb") as f:
+                        f.write(uf.getbuffer())
+                    saved_imgs += 1
+            
+            if hasattr(st, "toast"):
+                 st.toast(f"✅ Saved {saved_weights} weights and {saved_imgs} images for {upload_type}!")
+            st.success(f"✅ Saved {saved_weights} weights and {saved_imgs} images to {upload_type}!")
+            
+            import time
+            time.sleep(1)
+            if hasattr(st, "rerun"):
+                st.rerun()
+            elif hasattr(st, "experimental_rerun"):
+                st.experimental_rerun()
+        else:
+            st.warning("Please upload at least one file.")
+
 st.markdown("---")
 
 # --- Main Tabs ---
