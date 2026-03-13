@@ -361,6 +361,37 @@ with st.sidebar.expander("⬆️ Upload Custom Epoch Results", expanded=False):
 
 st.markdown("---")
 
+# --- Architecture Flow ---
+with st.expander(f"🏗️ Architecture Flow: {selected_model}", expanded=True):
+    if selected_model == "Vanilla GAN":
+        st.markdown("""
+        **🧑‍🎨 Generator:**  
+        `Input: Latent Vector(100)` ➔ `Linear(256) ➔ ReLU` ➔ `Linear(512) ➔ ReLU` ➔ `Linear(1024) ➔ ReLU` ➔ `Linear(784) ➔ Tanh` ➔ `Output: Image (28x28)`
+        
+        **🕵️ Discriminator:**  
+        `Input: Flattened Image(784)` ➔ `Linear(512) ➔ LeakyReLU` ➔ `Linear(256) ➔ LeakyReLU` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
+        """)
+    elif selected_model == "cGAN":
+        st.markdown("""
+        **🧑‍🎨 Generator:**  
+        `Input: Latent(100) ⊕ Label Embedding(10)` ➔ `Concat(110)` ➔ `Linear(256) ➔ ReLU` ➔ `Linear(512) ➔ ReLU` ➔ `Linear(784) ➔ Tanh` ➔ `Output: Image (28x28)`
+        
+        **🕵️ Discriminator:**  
+        `Input: Image(784) ⊕ Label Embedding(10)` ➔ `Concat(794)` ➔ `Linear(512) ➔ LeakyReLU` ➔ `Linear(256) ➔ LeakyReLU` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
+        """)
+    elif selected_model == "DCGAN":
+        st.markdown("""
+        **🧑‍🎨 Generator:**  
+        `Input: Latent(100x1x1)` ➔ `ConvTranspose2d(256, 7x7) ➔ BatchNorm ➔ ReLU` ➔ `ConvTranspose2d(128, 14x14) ➔ BatchNorm ➔ ReLU` ➔ `ConvTranspose2d(1, 28x28) ➔ Tanh` ➔ `Output: Image(1x28x28)`
+        
+        **🕵️ Discriminator:**  
+        `Input: Image(1x28x28)` ➔ `Conv2d(128, 14x14) ➔ LeakyReLU` ➔ `Conv2d(256, 7x7) ➔ BatchNorm ➔ LeakyReLU` ➔ `Flatten(12544)` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
+        """)
+    else:
+        st.info("Custom model loaded. Please check the `model.py` file for architectural details.")
+
+st.markdown("---")
+
 # --- Main Tabs ---
 tab1, tab2 = st.tabs(["🎨 Image Generation", "🔍 Real vs Fake Classification"])
 
