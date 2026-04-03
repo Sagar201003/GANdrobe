@@ -1,6 +1,6 @@
 # 🎨 FashionMNIST GAN Lab
 
-Welcome to the **FashionMNIST GAN Lab**, an interactive web application built with Streamlit and PyTorch. This project provides a hands-on environment to explore, generate, and evaluate images using three distinct Generative Adversarial Network (GAN) architectures trained from scratch on the FashionMNIST dataset.
+Welcome to the **FashionMNIST GAN Lab**, an interactive web application built with Streamlit and PyTorch. This project provides a hands-on environment to explore, generate, and evaluate images using four distinct Generative Adversarial Network (GAN) architectures trained from scratch on the FashionMNIST dataset.
 
 ## ✨ Features
 
@@ -27,9 +27,14 @@ Builds upon the Vanilla GAN by injecting **class labels** into both the Generato
 - **Discriminator:** Receives both the generated/real image and its corresponding class label embedding. It learns to determine if the image is not only real, but also if it correctly matches the given conditional label.
 
 ### 3. DCGAN (Deep Convolutional GAN)
-The most advanced model in this repository, utilizing transposed convolutions for significant quality improvements.
+The most commonly adopted advanced model, utilizing transposed convolutions for significant quality improvements.
 - **Generator:** Removes fully connected layers in favor of `ConvTranspose2d`. It takes the $100 \times 1 \times 1$ latent space and upsamples it using fractional-strided convolutions (`7x7 -> 14x14 -> 28x28`), utilizing Batch Normalization and ReLU.
 - **Discriminator:** Acts as a standard CNN classifier using strided `Conv2d` layers downsampling the image (`28x28 -> 14x14 -> 7x7`), utilizing LeakyReLU and Batch Normalization, culminating in a flattened state mapped to a single Sigmoid output.
+
+### 4. StyleGAN
+A state-of-the-art architecture adapted specifically for FashionMNIST, demonstrating high-quality synthesis through style incorporation and a Wasserstein loss paradigm.
+- **Generator:** Uses an 8-layer `MappingNetwork` to convert a 128-dimensional latent vector into a disentangled intermediate style space ($w$). This style is dynamically injected via Adaptive Instance Normalization (`AdaIN`) at multiple upsampling `StyleBlock` layers, separating macro structural features from micro-level textures.
+- **Discriminator:** Functions as a continuous critic minimizing Wasserstein distance using Gradient Penalty (WGAN-GP). It incrementally downsamples the image applying spatial convolutions coupled with `InstanceNorm2d`, ultimately outputting an unbounded real/fake logit score rather than a single restricted probability.
 
 ---
 
@@ -69,7 +74,7 @@ python run_app.py
 - `app.py`: The main Streamlit web application interface.
 - `run_app.py`: The wrapper script resolving PyTorch loading orders on Windows.
 - `requirements.txt`: Python dependencies required for the environment.
-- `vanilla_gan/`, `cgan/`, `dcgan/`: Directories storing the architectures' respective `.pt` model weights and intermediate output samples.
+- `vanilla_gan/`, `cgan/`, `dcgan/`, `stylegan/`: Directories storing the architectures' respective `.pt` model weights and intermediate output samples.
 
 ## 📄 License
 This project is open-source and available under the terms of the MIT License.
