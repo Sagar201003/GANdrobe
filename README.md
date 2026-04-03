@@ -18,23 +18,31 @@ This project explores the progression of GAN architectures, moving from basic mu
 
 ### 1. Vanilla GAN
 The foundational GAN architecture utilizing fully connected (Linear) layers.
-- **Generator:** Uses a 100-dimensional latent vector (`z`) expanding through hidden layers (`256 -> 512 -> 1024 -> 784`) with LeakyReLU activations, culminating in a `Tanh` layer to produce a flat $28 \times 28$ image.
-- **Discriminator:** A simple Multi-Layer Perceptron (MLP) taking a flattened 784-pixel input, reducing it through dense layers (`512 -> 256 -> 1`) using a `Sigmoid` function to output a probability (Real vs. Fake).
+- **Generator Flow:**  
+  `Input: Latent Vector(100)` ➔ `Linear(256) ➔ ReLU` ➔ `Linear(512) ➔ ReLU` ➔ `Linear(1024) ➔ ReLU` ➔ `Linear(784) ➔ Tanh` ➔ `Output: Output Image(28x28)`
+- **Discriminator Flow:**  
+  `Input: Flattened Image(784)` ➔ `Linear(512) ➔ LeakyReLU(0.2)` ➔ `Linear(256) ➔ LeakyReLU(0.2)` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
 
 ### 2. cGAN (Conditional GAN)
 Builds upon the Vanilla GAN by injecting **class labels** into both the Generator and Discriminator, allowing targeted image generation.
-- **Generator:** Concatenates the 100-dimensional latent vector with a learned 10-dimensional class embedding. This combined input is passed through dense layers to dictate *what* specific FashionMNIST item to generate.
-- **Discriminator:** Receives both the generated/real image and its corresponding class label embedding. It learns to determine if the image is not only real, but also if it correctly matches the given conditional label.
+- **Generator Flow:**  
+  `Input: Latent(100) ⊕ Label Embedding(10)` ➔ `Concat(110)` ➔ `Linear(256) ➔ ReLU` ➔ `Linear(512) ➔ ReLU` ➔ `Linear(784) ➔ Tanh` ➔ `Output: Image (28x28)`
+- **Discriminator Flow:**  
+  `Input: Image(784) ⊕ Label Embedding(10)` ➔ `Concat(794)` ➔ `Linear(512) ➔ LeakyReLU(0.2)` ➔ `Linear(256) ➔ LeakyReLU(0.2)` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
 
 ### 3. DCGAN (Deep Convolutional GAN)
 The most commonly adopted advanced model, utilizing transposed convolutions for significant quality improvements.
-- **Generator:** Removes fully connected layers in favor of `ConvTranspose2d`. It takes the $100 \times 1 \times 1$ latent space and upsamples it using fractional-strided convolutions (`7x7 -> 14x14 -> 28x28`), utilizing Batch Normalization and ReLU.
-- **Discriminator:** Acts as a standard CNN classifier using strided `Conv2d` layers downsampling the image (`28x28 -> 14x14 -> 7x7`), utilizing LeakyReLU and Batch Normalization, culminating in a flattened state mapped to a single Sigmoid output.
+- **Generator Flow:**  
+  `Input: Latent(100x1x1)` ➔ `ConvTranspose2d(256, 7x7) ➔ BatchNorm2d ➔ ReLU` ➔ `ConvTranspose2d(128, 14x14) ➔ BatchNorm2d ➔ ReLU` ➔ `ConvTranspose2d(1, 28x28) ➔ Tanh` ➔ `Output: Image(1x28x28)`
+- **Discriminator Flow:**  
+  `Input: Image(1x28x28)` ➔ `Conv2d(128, 14x14) ➔ LeakyReLU` ➔ `Conv2d(256, 7x7) ➔ BatchNorm2d ➔ LeakyReLU` ➔ `Flatten(12544)` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
 
 ### 4. StyleGAN
 A state-of-the-art architecture adapted specifically for FashionMNIST, demonstrating high-quality synthesis through style incorporation and a Wasserstein loss paradigm.
-- **Generator:** Uses an 8-layer `MappingNetwork` to convert a 128-dimensional latent vector into a disentangled intermediate style space ($w$). This style is dynamically injected via Adaptive Instance Normalization (`AdaIN`) at multiple upsampling `StyleBlock` layers, separating macro structural features from micro-level textures.
-- **Discriminator:** Functions as a continuous critic minimizing Wasserstein distance using Gradient Penalty (WGAN-GP). It incrementally downsamples the image applying spatial convolutions coupled with `InstanceNorm2d`, ultimately outputting an unbounded real/fake logit score rather than a single restricted probability.
+- **Generator Flow:**  
+  `Input: Latent(128)` ➔ `Mapping Network (8 layers)` ➔ `AdaIN Injection` ➔ `StyleBlocks (Upsampling 4x4 ➔ 8x8 ➔ 16x16 ➔ 32x32)` ➔ `Center-Crop(28x28)` ➔ `Conv2d(1x1) ➔ Tanh` ➔ `Output: Image(1x28x28)`
+- **Discriminator Flow:**  
+  `Input: Image(1x28x28)` ➔ `Conv2d(64, 14x14) ➔ LeakyReLU` ➔ `Conv2d(128, 7x7) ➔ InstanceNorm2d ➔ LeakyReLU` ➔ `Conv2d(256, 3x3) ➔ InstanceNorm2d ➔ LeakyReLU` ➔ `Conv2d(512, 3x3) ➔ InstanceNorm2d ➔ LeakyReLU` ➔ `Flatten(4608)` ➔ `Linear(1)` ➔ `Output: Logit Score (Wasserstein)`
 
 ---
 
