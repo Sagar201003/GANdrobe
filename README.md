@@ -1,6 +1,12 @@
 # 🎨 FashionMNIST GAN Lab
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ganlab.streamlit.app/)
+
 Welcome to the **FashionMNIST GAN Lab**, an interactive web application built with Streamlit and PyTorch. This project provides a hands-on environment to explore, generate, and evaluate images using four distinct Generative Adversarial Network (GAN) architectures trained from scratch on the FashionMNIST dataset.
+
+### 🌍 Live Demo
+You can access the fully deployed, interactive web application right now at:
+👉 **[https://ganlab.streamlit.app/](https://ganlab.streamlit.app/)**
 
 ## ✨ Features
 
