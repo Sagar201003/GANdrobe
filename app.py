@@ -26,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 def get_model_dirs():
     dirs = {}
     # Find all subdirectories in BASE_DIR that contain a 'weights' folder, plus the default ones
-    default_models = ["Vanilla GAN", "cGAN", "DCGAN"]
+    default_models = ["Vanilla GAN", "cGAN", "DCGAN", "StyleGAN"]
     
     # Check default ones first
     for model in default_models:
@@ -159,6 +159,96 @@ class DCGANDiscriminator(nn.Module):
     def forward(self, img):
         return self.model(img)
 
+# --- StyleGAN ---
+class MappingNetwork(nn.Module):
+    def __init__(self, z_dim=128, w_dim=128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(z_dim, w_dim), nn.LeakyReLU(0.2),
+            nn.Linear(w_dim, w_dim), nn.LeakyReLU(0.2),
+            nn.Linear(w_dim, w_dim), nn.LeakyReLU(0.2),
+            nn.Linear(w_dim, w_dim), nn.LeakyReLU(0.2),
+        )
+    def forward(self, z):
+        z = z / (z.norm(dim=1, keepdim=True) + 1e-8)
+        return self.net(z)
+
+class AdaIN(nn.Module):
+    def __init__(self, channels, w_dim=128):
+        super().__init__()
+        self.norm        = nn.InstanceNorm2d(channels, affine=False)
+        self.style_scale = nn.Linear(w_dim, channels)
+        self.style_bias  = nn.Linear(w_dim, channels)
+        nn.init.ones_(self.style_scale.bias)
+        nn.init.zeros_(self.style_bias.bias)
+    def forward(self, x, w):
+        x     = self.norm(x)
+        gamma = self.style_scale(w).unsqueeze(2).unsqueeze(3)
+        beta  = self.style_bias(w).unsqueeze(2).unsqueeze(3)
+        return gamma * x + beta
+
+class StyleBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, w_dim=128, upsample=True):
+        super().__init__()
+        self.upsample = (
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
+            if upsample else nn.Identity()
+        )
+        self.conv  = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.adain = AdaIN(out_channels, w_dim)
+        self.act   = nn.LeakyReLU(0.2)
+        nn.init.kaiming_normal_(self.conv.weight)
+    def forward(self, x, w):
+        x = self.upsample(x)
+        x = self.conv(x)
+        x = self.adain(x, w)
+        return self.act(x)
+
+class StyleGenerator(nn.Module):
+    def __init__(self, w_dim=128):
+        super().__init__()
+        self.mapping = MappingNetwork(128, w_dim)
+        self.const   = nn.Parameter(torch.randn(1, 256, 4, 4))
+        self.block0  = StyleBlock(256, 128, w_dim, upsample=False)
+        self.block1  = StyleBlock(128,  64, w_dim, upsample=True)
+        self.block2  = StyleBlock( 64,  32, w_dim, upsample=True)
+        self.block3  = StyleBlock( 32,  16, w_dim, upsample=True)
+        self.to_rgb  = nn.Sequential(
+            nn.Conv2d(16, 1, kernel_size=1),
+            nn.Tanh()
+        )
+    def forward(self, z):
+        b = z.size(0)
+        w = self.mapping(z)
+        x = self.const.expand(b, -1, -1, -1)   # (b, 256, 4, 4)
+        x = self.block0(x, w)                   # (b, 128, 4, 4)
+        x = self.block1(x, w)                   # (b,  64, 8, 8)
+        x = self.block2(x, w)                   # (b,  32,16,16)
+        x = self.block3(x, w)                   # (b,  16,32,32)
+        x = x[:, :, 2:30, 2:30]                # centre-crop → (b,16,28,28)
+        return self.to_rgb(x)                   # (b,   1,28,28)
+
+class StyleDiscriminator(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.InstanceNorm2d(128, affine=True),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.InstanceNorm2d(256, affine=True),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),
+            nn.InstanceNorm2d(512, affine=True),
+            nn.LeakyReLU(0.2),
+            nn.Flatten(),
+            nn.Linear(512 * 3 * 3, 1)
+        )
+    def forward(self, img):
+        return self.model(img)
+
 # ==========================================
 # Helper Functions
 # ==========================================
@@ -179,6 +269,9 @@ def load_model(model_name, checkpoint_path):
     elif model_name == "DCGAN":
         G = DCGANGenerator().to(device)
         D = DCGANDiscriminator().to(device)
+    elif model_name == "StyleGAN":
+        G = StyleGenerator().to(device)
+        D = StyleDiscriminator().to(device)
     else:
         # Dynamic import for custom models
         model_dir = MODEL_DIRS.get(model_name)
@@ -387,6 +480,14 @@ with st.expander(f"🏗️ Architecture Flow: {selected_model}", expanded=True):
         **🕵️ Discriminator:**  
         `Input: Image(1x28x28)` ➔ `Conv2d(128, 14x14) ➔ LeakyReLU` ➔ `Conv2d(256, 7x7) ➔ BatchNorm ➔ LeakyReLU` ➔ `Flatten(12544)` ➔ `Linear(1) ➔ Sigmoid` ➔ `Output: Probability (Real/Fake)`
         """)
+    elif selected_model == "StyleGAN":
+        st.markdown("""
+        **🧑‍🎨 Generator:**  
+        `Input: Latent(128)` ➔ `Mapping Network (8 layers)` ➔ `AdabIN Injection` ➔ `StyleBlocks (Upsampling)` ➔ `Output: Image(1x28x28)`
+        
+        **🕵️ Discriminator:**  
+        `Input: Image(1x28x28)` ➔ `Conv2d(64, 14x14) ➔ LeakyReLU` ➔ `Conv2d(128, 7x7) ➔ InstanceNorm ➔ LeakyReLU` ➔ `Flatten(4608)` ➔ `Linear(1)` ➔ `Output: Logit Score (Wasserstein)`
+        """)
     else:
         st.info("Custom model loaded. Please check the `model.py` file for architectural details.")
 
@@ -416,7 +517,8 @@ with tab1:
                 
         if st.button("Generate Images", type="primary", use_container_width=True):
             with torch.no_grad():
-                z = torch.randn(num_images, 100, device=device)
+                z_dim = 128 if selected_model == "StyleGAN" else 100
+                z = torch.randn(num_images, z_dim, device=device)
                 if selected_model == "cGAN":
                     labels = torch.full((num_images,), selected_class_idx, dtype=torch.long, device=device)
                     fake_images = G(z, labels)
@@ -502,6 +604,9 @@ with tab2:
                          confidence = D(flat_input, label_tensor).item()
                     elif selected_model == "DCGAN":
                         confidence = D(input_tensor).item()
+                    elif selected_model == "StyleGAN":
+                        logit = D(input_tensor).item()
+                        confidence = torch.sigmoid(torch.tensor(logit)).item()
                 
                 is_real = confidence >= 0.5
                 if is_real: real_count += 1

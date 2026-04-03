@@ -1,8 +1,9 @@
 import json
+import os
 
 def extract_code():
-    nb_path = r"c:\Users\shiva\OneDrive\Desktop\GAN_Project\code\GAN_FashionMNIST_11_03.ipynb"
-    out_path = r"c:\Users\shiva\OneDrive\Desktop\GAN_Project\code\extracted_model.py"
+    nb_path = r"c:\Users\shiva\OneDrive\Desktop\GAN_Project\code\STYLE_GAN.ipynb"
+    out_path = r"c:\Users\shiva\OneDrive\Desktop\GAN_Project\code\stylegan_extracted.py"
     
     with open(nb_path, "r", encoding="utf-8") as f:
         nb = json.load(f)
